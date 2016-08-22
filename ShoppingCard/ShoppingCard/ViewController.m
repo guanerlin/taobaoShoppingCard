@@ -83,7 +83,7 @@ const NSInteger ROW_COUNT = 3;
             break;
         case 2: {
             [self initButtons:cell withCount:thirdRowCount forRowIndex:indexPath];
-            [self buttonSelected:nil];
+            [self buttonSelected:nil];//加载完成后，刷新全部按钮，显示库存情况
         }
             
             break;
@@ -153,8 +153,6 @@ const NSInteger ROW_COUNT = 3;
         _conditionArray = temp;
     }
     
-    NSLog(@"条件组内条件数量%ld",_conditionArray.count);
-    NSLog(@"%@",_conditionArray);
     if (_conditionArray.count == ROW_COUNT) {//当三项都选择的时候，给出具体库存
         [self calculateReminderWithConditionArray];
     } else _label.text = @"";
