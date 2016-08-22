@@ -19,7 +19,7 @@
 const NSInteger firstRowCount = 5;
 const NSInteger secondRowCount = 5;
 const NSInteger thirdRowCount = 2;
-const NSInteger rowCount = 3;
+const NSInteger ROW_COUNT = 3;
 @implementation ViewController
 
 - (void)viewDidLoad {
@@ -61,7 +61,7 @@ const NSInteger rowCount = 3;
 
 #pragma datasource
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return rowCount;
+    return ROW_COUNT;
 }
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString *CellIdentifier = @"Cell";
@@ -123,7 +123,7 @@ const NSInteger rowCount = 3;
     
     //重刷所有按钮是否置灰
     for (UIButton *btn in _buttonArray) {
-        [self calculateForButton:btn];
+        [self reviewButton:btn withConditions:_conditionArray fromDict:_goodsDict];
     }
     
 }
@@ -155,34 +155,43 @@ const NSInteger rowCount = 3;
     
     NSLog(@"条件组内条件数量%ld",_conditionArray.count);
     NSLog(@"%@",_conditionArray);
-    if (_conditionArray.count == 3) {//当三项都选择的时候，给出具体库存
+    if (_conditionArray.count == ROW_COUNT) {//当三项都选择的时候，给出具体库存
         [self calculateReminderWithConditionArray];
     } else _label.text = @"";
 }
 
-- (void)calculateForButton:(UIButton *)button {
-    //无条件
-    switch (_conditionArray.count) {
-        case 0:
-            [self noConditionWhenReviewButton:button];
-            break;
-        case 1:
-            [self oneConditionWhenReviewButton:button];
-            break;
-        case 2:
-            [self twoConditionWhenReviewButton:button withConditionArray:_conditionArray];
-            break;
-        case 3:
-            [self threeConditionWhenReviewButton:button];
-            break;
-        default:
-            break;
-    }
 
+- (void)reviewButton:(UIButton *)button withConditions:(NSMutableArray *)conditions fromDict:(NSMutableDictionary *)dict {
+    NSMutableArray *filteredConditions = [self filterConditions:conditions forButton:button];
+    button.enabled = YES;
+    if (!filteredConditions.count) {
+        [self noConditionWhenReviewButton:button withGooldsDict:_goodsDict];
+    } else {
+        NSMutableDictionary *targetDict = [NSMutableDictionary dictionaryWithDictionary:dict];
+        for (int i = 0; i < filteredConditions.count; i++) {
+            UIButton *btn = (UIButton *)filteredConditions[i];
+            NSMutableDictionary *remainderDict = [self resultWhenSelectOneButton:btn fromDict:targetDict];
+            targetDict = remainderDict;
+            if (i == filteredConditions.count - 1) {
+                if (targetDict.count) {
+                    [self noConditionWhenReviewButton:button withGooldsDict:targetDict];
+                } else button.enabled = NO;
+            }
+        }
+    }
 }
 
-- (void)noConditionWhenReviewButton:(UIButton *)button {
-    [self noConditionWhenReviewButton:button withGooldsDict:_goodsDict];
+- (NSMutableArray *)filterConditions:(NSMutableArray *)conditions forButton:(UIButton *)button {
+    if (!button) {
+        return conditions;
+    }
+    NSMutableArray *result = [NSMutableArray new];
+    for (UIButton *btn in conditions) {
+        if (![self button:btn isInSameRowWithButton:button]) {
+            [result addObject:btn];
+        }
+    }
+    return result;
 }
 
 - (void)noConditionWhenReviewButton:(UIButton *)button withGooldsDict:(NSMutableDictionary *)goodsDict{
@@ -193,74 +202,6 @@ const NSInteger rowCount = 3;
         NSString *targetString = [key substringWithRange:NSMakeRange(row - 1,1)];
         if ([targetString isEqualToString:[NSString stringWithFormat:@"%ld",line]]) {
             button.enabled = YES;
-            break;
-        }
-    }
-}
-
-- (void)oneConditionWhenReviewButton:(UIButton *)button {
-    UIButton *conditionButton = [_conditionArray firstObject];
-    if (button == conditionButton) {//自己已经是被选中状态，在条件组中，所以不必考虑置灰，因为已经可选
-        return;
-    } else {
-        if ([self button:button isInSameRowWithButton:conditionButton]) {
-            //相同行，此唯一条件互斥，相当于无条件状态下是否可选
-            [self noConditionWhenReviewButton:button withGooldsDict:_goodsDict];
-        } else {
-            //非同行，需要将条件组内此唯一条件作为前提，查找库存
-            NSMutableDictionary *remainderDict = [self resultWhenSelectOneButton:conditionButton fromDict:_goodsDict];
-            if (remainderDict.count) {
-                [self noConditionWhenReviewButton:button withGooldsDict:remainderDict];
-            } else button.enabled = NO;
-        }
-    }
-}
-
-- (void)oneConditionWhenReviewButton:(UIButton *)button withConditionArray:(NSMutableArray *)conditionArray{
-    UIButton *conditionButton = [conditionArray firstObject];
-    if (button == conditionButton) {//自己已经是被选中状态，在条件组中，所以不必考虑置灰，因为已经可选
-        return;
-    } else {
-        if ([self button:button isInSameRowWithButton:conditionButton]) {
-            //相同行，此唯一条件互斥，相当于无条件状态下是否可选
-            [self noConditionWhenReviewButton:button withGooldsDict:_goodsDict];
-        } else {
-            //非同行，需要将条件组内此唯一条件作为前提，查找库存
-            NSMutableDictionary *remainderDict = [self resultWhenSelectOneButton:conditionButton fromDict:_goodsDict];
-            if (remainderDict.count) {
-                [self noConditionWhenReviewButton:button withGooldsDict:remainderDict];
-            } else button.enabled = NO;
-        }
-    }
-}
-
-- (void)twoConditionWhenReviewButton:(UIButton *)button withConditionArray:(NSMutableArray *)conditionArray{
-    UIButton *btn1 = conditionArray[0];
-    UIButton *btn2 = conditionArray[1];
-    //与两条条件之一的button同行的时候，就只剩一个条件
-    if ([self button:btn1 isInSameRowWithButton:button]) {
-        [self oneConditionWhenReviewButton:button withConditionArray:[NSMutableArray arrayWithObject:btn2]];
-    } else if ([self button:btn2 isInSameRowWithButton:button]) {
-        [self oneConditionWhenReviewButton:button withConditionArray:[NSMutableArray arrayWithObject:btn1]];
-//        [self oneConditionWhenReviewButton:btn1];
-    } else {
-        //都是非同行
-        NSMutableDictionary *remainderDict = [self resultWhenSelectOneButton:btn1 fromDict:_goodsDict];
-        if (remainderDict.count) {
-            NSMutableDictionary *remainderDict2 = [self resultWhenSelectOneButton:btn2 fromDict:remainderDict];
-            if (remainderDict2.count) {
-                [self noConditionWhenReviewButton:button withGooldsDict:remainderDict2];
-            } else button.enabled = NO;
-        } else button.enabled = NO;
-    }
-}
-
-- (void)threeConditionWhenReviewButton:(UIButton *)button {
-    NSMutableArray *newConditionArray = [NSMutableArray arrayWithArray:_conditionArray];
-    for (UIButton *btn in _conditionArray) {
-        if ([self button:btn isInSameRowWithButton:button]) {
-            [newConditionArray removeObject:btn];
-            [self twoConditionWhenReviewButton:button withConditionArray:newConditionArray];
             break;
         }
     }
